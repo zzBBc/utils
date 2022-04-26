@@ -25,6 +25,7 @@ import org.apache.http.util.EntityUtils;
 public class JsonUtils {
     public static void add(JsonArray destination, JsonArray... other) {
         Objects.requireNonNull(destination);
+        Objects.requireNonNull(other);
 
         for (JsonArray jsonArray : other) {
             for (JsonElement element : jsonArray) {
@@ -43,6 +44,16 @@ public class JsonUtils {
         return null;
     }
 
+    public static JsonObject getJsonObject(Map<String, String> map) {
+        Objects.requireNonNull(map);
+
+        JsonObject jsonObject = new JsonObject();
+        map.forEach((k, v) -> {
+            jsonObject.addProperty(k, v);
+        });
+
+        return jsonObject;
+    }
 
     public static JsonObject getJsonObject(JsonObject jsonObject, String name) {
         JsonElement element = jsonObject.get(name);
@@ -65,6 +76,17 @@ public class JsonUtils {
         return new JsonObject();
     }
 
+    public static String getString(JsonArray array, int i) {
+        JsonElement element = array.get(i);
+
+        String value = "";
+        if (element != null && !element.isJsonNull()) {
+            value = element.getAsString();
+        }
+
+        return value.trim();
+    }
+
     public static String getString(JsonObject jsonObject, String name) {
         JsonElement element = jsonObject.get(name);
 
@@ -80,7 +102,7 @@ public class JsonUtils {
         return getJsonObject(jsonObject, name).toString();
     }
 
-    public static JsonArray toJsonArray(ResultSet resultSet) {
+    public static JsonArray toJsonArray(ResultSet resultSet) throws SQLException {
         JsonArray jsonArray = new JsonArray();
 
 
@@ -88,99 +110,90 @@ public class JsonUtils {
             return jsonArray;
         }
 
-        try {
-            ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
+        ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
 
-            int columnCount = resultSetMetaData.getColumnCount();
-            int[] columnTypes = new int[columnCount];
-            String[] columnNames = new String[columnCount];
+        int columnCount = resultSetMetaData.getColumnCount();
+        int[] columnTypes = new int[columnCount];
+        String[] columnNames = new String[columnCount];
+
+        for (int i = 0; i < columnCount; i++) {
+            columnTypes[i] = resultSetMetaData.getColumnType(i + 1);
+            columnNames[i] = resultSetMetaData.getColumnName(i + 1);
+        }
+
+        while (resultSet.next()) {
+            JsonObject jsonObject = new JsonObject();
 
             for (int i = 0; i < columnCount; i++) {
-                columnTypes[i] = resultSetMetaData.getColumnType(i + 1);
-                columnNames[i] = resultSetMetaData.getColumnName(i + 1);
-            }
+                int columnIndex = i + 1;
+                switch (columnTypes[i]) {
+                    case Types.NULL:
+                        jsonObject.addProperty(columnNames[i], "null");
+                        break;
+                    case Types.CHAR:
+                    case Types.VARCHAR:
+                    case Types.DATE:
+                        String sTemp = resultSet.getString(columnIndex);
+                        if (sTemp != null) {
+                            sTemp = sTemp.trim();
+                        } else {
+                            sTemp = "";
+                        }
+                        jsonObject.addProperty(columnNames[i], sTemp);
+                        break;
+                    case Types.TINYINT:
+                    case Types.INTEGER:
+                    case Types.SMALLINT:
+                    case Types.BIGINT:
+                        jsonObject.addProperty(columnNames[i], resultSet.getLong(columnIndex));
+                        break;
+                    case Types.BOOLEAN:
+                        jsonObject.addProperty(columnNames[i], resultSet.getBoolean(columnIndex));
 
-            while (resultSet.next()) {
-                JsonObject jsonObject = new JsonObject();
+                        break;
+                    case Types.NUMERIC:
+                    case Types.DOUBLE:
+                        jsonObject.addProperty(columnNames[i], resultSet.getDouble(columnIndex));
+                        break;
+                    case Types.FLOAT:
+                        jsonObject.addProperty(columnNames[i], resultSet.getFloat(columnIndex));
+                        break;
+                    case Types.NCLOB:
+                        String clobString = JsonUtils.getClob(resultSet, columnIndex);
 
-                for (int i = 0; i < columnCount; i++) {
-                    int columnIndex = i + 1;
-                    switch (columnTypes[i]) {
-                        case Types.NULL:
-                            jsonObject.addProperty(columnNames[i], "null");
-                            break;
-                        case Types.CHAR:
-                        case Types.VARCHAR:
-                        case Types.DATE:
-                            String sTemp = resultSet.getString(columnIndex);
-                            if (sTemp != null)
-                                sTemp = sTemp.trim();
-                            jsonObject.addProperty(columnNames[i], sTemp);
-                            break;
-                        case Types.TINYINT:
-                        case Types.INTEGER:
-                        case Types.SMALLINT:
-                        case Types.BIGINT:
-                            jsonObject.addProperty(columnNames[i], resultSet.getLong(columnIndex));
-                            break;
-                        case Types.BOOLEAN:
-                            jsonObject.addProperty(columnNames[i],
-                                    resultSet.getBoolean(columnIndex));
+                        jsonObject.addProperty(columnNames[i], clobString);
+                        break;
+                    case Types.TIMESTAMP:
+                        String dateTime = JsonUtils.getTimestamp(resultSet, columnIndex);
 
-                            break;
-                        case Types.NUMERIC:
-                        case Types.DOUBLE:
-                            jsonObject.addProperty(columnNames[i],
-                                    resultSet.getDouble(columnIndex));
-                            break;
-                        case Types.FLOAT:
-                            jsonObject.addProperty(columnNames[i], resultSet.getFloat(columnIndex));
-                            break;
-                        case Types.NCLOB:
-                            String clobString = JsonUtils.getClob(resultSet, columnIndex);
+                        jsonObject.addProperty(columnNames[i], dateTime);
+                        break;
+                    case Types.BLOB:
+                        // Không xử lý blob type column
+                        // byte[] blobByte = JsonUtils.getBlob(resultSet, columnIndex);
 
-                            jsonObject.addProperty(columnNames[i], clobString);
-                            break;
-                        case Types.TIMESTAMP:
-                            String dateTime = JsonUtils.getTimestamp(resultSet, columnIndex);
-
-                            jsonObject.addProperty(columnNames[i], dateTime);
-                            break;
-                        case Types.BLOB:
-                            // Không xử lý blob type column
-                            // byte[] blobByte = JsonUtils.getBlob(resultSet, columnIndex);
-
-                            // jsonObject.addProperty(columnNames[i], blobByte);
-                            break;
-                        default:
-                            jsonObject.addProperty(columnNames[i],
-                                    resultSet.getString(columnIndex));
-                            break;
-                    }
+                        // jsonObject.addProperty(columnNames[i], blobByte);
+                        break;
+                    default:
+                        jsonObject.addProperty(columnNames[i], resultSet.getString(columnIndex));
+                        break;
                 }
-                jsonArray.add(jsonObject);
             }
-
-            resultSet.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
+            jsonArray.add(jsonObject);
         }
+
+        resultSet.close();
 
         return jsonArray;
     }
 
 
     private static JsonArray toJsonArray(List<String> values) {
-        JsonArray array = new JsonArray(values.size());
+        return toJsonArray(values.toArray(new String[0]));
 
-        for (Object value : values) {
-            array.add(value.toString());
-        }
-
-        return array;
     }
 
-    private static JsonArray toJsonArray(String... values) {
+    public static JsonArray toJsonArray(String... values) {
         JsonArray array = new JsonArray(values.length);
 
         for (String value : values) {
@@ -190,27 +203,20 @@ public class JsonUtils {
         return array;
     }
 
-    private static String getTimestamp(ResultSet resultSet, int columnIndex) {
-        try {
-            LocalDateTime dateTime = resultSet.getObject(columnIndex, LocalDateTime.class);
+    private static String getTimestamp(ResultSet resultSet, int columnIndex) throws SQLException {
+        LocalDateTime dateTime = resultSet.getObject(columnIndex, LocalDateTime.class);
 
-            return TimeUtils.parse(dateTime);
-        } catch (SQLException e) {
-            // e.printStackTrace();
-        }
+        return TimeUtils.parse(dateTime);
 
-        return "";
     }
 
 
-    private static String getClob(ResultSet resultSet, int columnIndex) {
+    private static String getClob(ResultSet resultSet, int columnIndex) throws SQLException {
         Clob clob;
-        try {
-            clob = resultSet.getClob(columnIndex);
+        clob = resultSet.getClob(columnIndex);
 
-            return StringUtils.toString(clob);
-        } catch (SQLException e) {
-            // e.printStackTrace();
+        if (clob != null) {
+            return clob.getSubString(1, (int) clob.length());
         }
 
         return "";
@@ -235,22 +241,22 @@ public class JsonUtils {
     }
 
 
-    public static JsonObject toJsonObject(HttpResponse response) {
+    public static JsonObject toJsonObject(HttpResponse response)
+            throws ParseException, IOException {
         Objects.requireNonNull(response);
 
         HttpEntity entity = response.getEntity();
 
         String result;
-        try {
-            result = EntityUtils.toString(entity);
-        } catch (ParseException | IOException e) {
-            return null;
-        }
+        result = EntityUtils.toString(entity);
 
         String jsonString = StringEscapeUtils.unescapeJava(result);
         JsonObject jsonObject = JsonParser.parseString(jsonString).getAsJsonObject();
 
-        jsonObject.addProperty("status", response.getStatusLine().getStatusCode());
+        String status = JsonUtils.getString(jsonObject, "status");
+        if (StringUtils.isEmpty(status)) {
+            jsonObject.addProperty("status", response.getStatusLine().getStatusCode());
+        }
 
         return jsonObject;
     }
@@ -288,6 +294,14 @@ public class JsonUtils {
                             JsonArray array = (JsonArray) value;
 
                             object.add(fieldName, array);
+                        } else if (type.equals(JsonObject.class)) {
+                            JsonObject jsonObject = (JsonObject) value;
+
+                            object.add(fieldName, jsonObject);
+                        } else if (type.equals(Long.class)) {
+                            object.addProperty(fieldName, (Long) value);
+                        } else if (type.equals(Integer.class)) {
+                            object.addProperty(fieldName, (Integer) value);
                         } else {
                             object.addProperty(fieldName, value.toString());
                         }
