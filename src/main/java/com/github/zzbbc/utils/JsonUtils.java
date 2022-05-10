@@ -21,8 +21,15 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.ParseException;
 import org.apache.http.util.EntityUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class JsonUtils {
+    static Logger LOGGER = LoggerFactory.getLogger(JsonUtils.class);
+
+    private static final String PROPERTY_STATUS = "status";
+    private static final String PROPERTY_ERROR = "error";
+
     public static void add(JsonArray destination, JsonArray... other) {
         Objects.requireNonNull(destination);
         Objects.requireNonNull(other);
@@ -251,11 +258,19 @@ public class JsonUtils {
         result = EntityUtils.toString(entity);
 
         String jsonString = StringEscapeUtils.unescapeJava(result);
+        LOGGER.info("Parse response to Json: {}", jsonString);
+
         JsonObject jsonObject = JsonParser.parseString(jsonString).getAsJsonObject();
 
-        String status = JsonUtils.getString(jsonObject, "status");
+        String status = JsonUtils.getString(jsonObject, PROPERTY_STATUS);
         if (StringUtils.isEmpty(status)) {
-            jsonObject.addProperty("status", response.getStatusLine().getStatusCode());
+            Integer error = JsonUtils.getInt(jsonObject, PROPERTY_ERROR);
+
+            if (error != null) {
+                jsonObject.addProperty(PROPERTY_STATUS, error);
+            } else {
+                jsonObject.addProperty(PROPERTY_STATUS, response.getStatusLine().getStatusCode());
+            }
         }
 
         return jsonObject;
