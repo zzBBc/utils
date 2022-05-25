@@ -22,6 +22,20 @@ import com.google.gson.JsonArray;
 public class StringUtils {
     private static final String DEFAULT_DELIMITER = ",";
 
+    private static Object toStringBuilder(StackTraceElement[] stackTraces) {
+        StringBuilder builder = new StringBuilder(System.lineSeparator());
+
+        for (StackTraceElement stackTraceElement : stackTraces) {
+            builder.append(System.lineSeparator()).append(stackTraceElement);
+        }
+
+        return builder;
+    }
+
+    public static String toString(Throwable throwable) {
+        return toString(throwable.getMessage(), throwable.getStackTrace());
+    }
+
     public static String toString(List<String> contacts) {
         return join(DEFAULT_DELIMITER, contacts);
     };
@@ -51,16 +65,6 @@ public class StringUtils {
 
     public static String toString(StringBuilder prefix, StackTraceElement[] stackTraces) {
         return new StringBuilder(prefix).append(toStringBuilder(stackTraces)).toString();
-    }
-
-    private static Object toStringBuilder(StackTraceElement[] stackTraces) {
-        StringBuilder builder = new StringBuilder(System.lineSeparator());
-
-        for (StackTraceElement stackTraceElement : stackTraces) {
-            builder.append(System.lineSeparator()).append(stackTraceElement);
-        }
-
-        return builder;
     }
 
     public static String toString(Clob clob) throws SQLException {
