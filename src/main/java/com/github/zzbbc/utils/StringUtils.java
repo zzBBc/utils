@@ -22,7 +22,7 @@ import com.google.gson.JsonArray;
 public class StringUtils {
     private static final String DEFAULT_DELIMITER = ",";
 
-    private static Object toStringBuilder(StackTraceElement[] stackTraces) {
+    private static StringBuilder toStringBuilder(StackTraceElement[] stackTraces) {
         StringBuilder builder = new StringBuilder(System.lineSeparator());
 
         for (StackTraceElement stackTraceElement : stackTraces) {
@@ -30,6 +30,10 @@ public class StringUtils {
         }
 
         return builder;
+    }
+
+    public static String toString(StackTraceElement[] stackTraces) {
+        return toStringBuilder(stackTraces).toString();
     }
 
     public static String toString(Throwable throwable) {
