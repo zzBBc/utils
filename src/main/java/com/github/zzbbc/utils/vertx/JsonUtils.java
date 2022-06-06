@@ -1,4 +1,4 @@
-package com.github.zzbbc.utils;
+package com.github.zzbbc.utils.vertx;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -12,10 +12,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 import org.apache.commons.text.StringEscapeUtils;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -23,6 +19,11 @@ import org.apache.http.ParseException;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import com.github.zzbbc.utils.CommonUtils;
+import com.github.zzbbc.utils.StringUtils;
+import com.github.zzbbc.utils.TimeUtils;
+import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
 
 public class JsonUtils {
     static Logger LOGGER = LogManager.getLogger(JsonUtils.class);
@@ -35,20 +36,15 @@ public class JsonUtils {
         Objects.requireNonNull(other);
 
         for (JsonArray jsonArray : other) {
-            for (JsonElement element : jsonArray) {
+            List elements = jsonArray.getList();
+            for (Object element : elements) {
                 destination.add(element);
             }
         }
     }
 
     public static Integer getInt(JsonObject jsonObject, String name) {
-        JsonElement element = jsonObject.get(name);
-
-        if (element != null && !element.isJsonNull()) {
-            return element.getAsInt();
-        }
-
-        return null;
+        return jsonObject.getInteger(name, null);
     }
 
     public static JsonObject getJsonObject(Map<String, String> map) {
@@ -56,53 +52,31 @@ public class JsonUtils {
 
         JsonObject jsonObject = new JsonObject();
         map.forEach((k, v) -> {
-            jsonObject.addProperty(k, v);
+            jsonObject.put(k, v);
         });
 
         return jsonObject;
     }
 
     public static JsonObject getJsonObject(JsonObject jsonObject, String name) {
-        JsonElement element = jsonObject.get(name);
 
-        JsonObject value = new JsonObject();
-        if (element != null && !element.isJsonNull()) {
-            value = element.getAsJsonObject();
-        }
-
-        return value;
+        return jsonObject.getJsonObject(name, new JsonObject());
     }
 
     public static JsonObject getJsonObject(JsonArray jsonArray, int index) {
-        JsonElement element = jsonArray.get(index);
 
-        if (element != null && !element.isJsonNull()) {
-            return element.getAsJsonObject();
-        }
-
-        return new JsonObject();
+        return jsonArray.getJsonObject(index);
     }
 
     public static String getString(JsonArray array, int i) {
-        JsonElement element = array.get(i);
-
-        String value = "";
-        if (element != null && !element.isJsonNull()) {
-            value = element.getAsString();
-        }
+        String value = array.getString(i);
 
         return value.trim();
     }
 
     public static String getString(JsonObject jsonObject, String name) {
-        JsonElement element = jsonObject.get(name);
 
-        String value = "";
-        if (element != null && !element.isJsonNull()) {
-            value = element.getAsString();
-        }
-
-        return value.trim();
+        return jsonObject.getString(name, "");
     }
 
     public static String getStringObject(JsonObject jsonObject, String name) {
@@ -135,7 +109,7 @@ public class JsonUtils {
                 int columnIndex = i + 1;
                 switch (columnTypes[i]) {
                     case Types.NULL:
-                        jsonObject.addProperty(columnNames[i], "null");
+                        jsonObject.put(columnNames[i], "null");
                         break;
                     case Types.CHAR:
                     case Types.VARCHAR:
@@ -146,34 +120,34 @@ public class JsonUtils {
                         } else {
                             sTemp = "";
                         }
-                        jsonObject.addProperty(columnNames[i], sTemp);
+                        jsonObject.put(columnNames[i], sTemp);
                         break;
                     case Types.TINYINT:
                     case Types.INTEGER:
                     case Types.SMALLINT:
                     case Types.BIGINT:
-                        jsonObject.addProperty(columnNames[i], resultSet.getLong(columnIndex));
+                        jsonObject.put(columnNames[i], resultSet.getLong(columnIndex));
                         break;
                     case Types.BOOLEAN:
-                        jsonObject.addProperty(columnNames[i], resultSet.getBoolean(columnIndex));
+                        jsonObject.put(columnNames[i], resultSet.getBoolean(columnIndex));
 
                         break;
                     case Types.NUMERIC:
                     case Types.DOUBLE:
-                        jsonObject.addProperty(columnNames[i], resultSet.getDouble(columnIndex));
+                        jsonObject.put(columnNames[i], resultSet.getDouble(columnIndex));
                         break;
                     case Types.FLOAT:
-                        jsonObject.addProperty(columnNames[i], resultSet.getFloat(columnIndex));
+                        jsonObject.put(columnNames[i], resultSet.getFloat(columnIndex));
                         break;
                     case Types.NCLOB:
                         String clobString = JsonUtils.getClob(resultSet, columnIndex);
 
-                        jsonObject.addProperty(columnNames[i], clobString);
+                        jsonObject.put(columnNames[i], clobString);
                         break;
                     case Types.TIMESTAMP:
                         String dateTime = JsonUtils.getTimestamp(resultSet, columnIndex);
 
-                        jsonObject.addProperty(columnNames[i], dateTime);
+                        jsonObject.put(columnNames[i], dateTime);
                         break;
                     case Types.BLOB:
                         // Không xử lý blob type column
@@ -182,7 +156,7 @@ public class JsonUtils {
                         // jsonObject.addProperty(columnNames[i], blobByte);
                         break;
                     default:
-                        jsonObject.addProperty(columnNames[i], resultSet.getString(columnIndex));
+                        jsonObject.put(columnNames[i], resultSet.getString(columnIndex));
                         break;
                 }
             }
@@ -201,7 +175,7 @@ public class JsonUtils {
     }
 
     public static JsonArray toJsonArray(String... values) {
-        JsonArray array = new JsonArray(values.length);
+        JsonArray array = new JsonArray();
 
         for (String value : values) {
             array.add(value);
@@ -235,7 +209,7 @@ public class JsonUtils {
 
         JsonObject jsonObject = new JsonObject();
         map.forEach((k, v) -> {
-            jsonObject.addProperty(k, v);
+            jsonObject.put(k, v);
         });
 
         return jsonObject;
@@ -260,16 +234,16 @@ public class JsonUtils {
         String jsonString = StringEscapeUtils.unescapeJava(result);
         LOGGER.debug("Parse response to Json: {}", jsonString);
 
-        JsonObject jsonObject = JsonParser.parseString(jsonString).getAsJsonObject();
+        JsonObject jsonObject = new JsonObject(jsonString);
 
         String status = JsonUtils.getString(jsonObject, PROPERTY_STATUS);
         if (StringUtils.isEmpty(status)) {
             Integer error = JsonUtils.getInt(jsonObject, PROPERTY_ERROR);
 
             if (error != null) {
-                jsonObject.addProperty(PROPERTY_STATUS, error);
+                jsonObject.put(PROPERTY_STATUS, error);
             } else {
-                jsonObject.addProperty(PROPERTY_STATUS, response.getStatusLine().getStatusCode());
+                jsonObject.put(PROPERTY_STATUS, response.getStatusLine().getStatusCode());
             }
         }
 
@@ -300,25 +274,25 @@ public class JsonUtils {
                         if (type.equals(String[].class)) {
                             JsonArray array = JsonUtils.toJsonArray((String[]) value);
 
-                            object.add(fieldName, array);
+                            object.put(fieldName, array);
                         } else if (type.equals(List.class)) {
                             JsonArray array = JsonUtils.toJsonArray((List<String>) value);
 
-                            object.add(fieldName, array);
+                            object.put(fieldName, array);
                         } else if (type.equals(JsonArray.class)) {
                             JsonArray array = (JsonArray) value;
 
-                            object.add(fieldName, array);
+                            object.put(fieldName, array);
                         } else if (type.equals(JsonObject.class)) {
                             JsonObject jsonObject = (JsonObject) value;
 
-                            object.add(fieldName, jsonObject);
+                            object.put(fieldName, jsonObject);
                         } else if (type.equals(Long.class)) {
-                            object.addProperty(fieldName, (Long) value);
+                            object.put(fieldName, (Long) value);
                         } else if (type.equals(Integer.class)) {
-                            object.addProperty(fieldName, (Integer) value);
+                            object.put(fieldName, (Integer) value);
                         } else {
-                            object.addProperty(fieldName, value.toString());
+                            object.put(fieldName, value.toString());
                         }
                     } catch (IllegalArgumentException | IllegalAccessException e) {
                         e.printStackTrace();
@@ -329,12 +303,7 @@ public class JsonUtils {
     }
 
     public static JsonObject toJsonObject(String value) {
-        JsonElement jsonElement = JsonParser.parseString(value);
 
-        if (jsonElement.isJsonObject()) {
-            return jsonElement.getAsJsonObject();
-        }
-
-        return null;
+        return new JsonObject(value);
     }
 }
